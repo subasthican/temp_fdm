@@ -1,0 +1,3 @@
+# Extra packages needed to execute the modelling notebook/rebuild script.
+matplotlib==3.11.2
+seaborn==0.13.2
