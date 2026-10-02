@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ *
+ * Semantic theme tokens. Values are space-separated RGB channels so
+ * Tailwind's <alpha-value> works (bg-surface/70, border-line, ...).
+ * Light is the default; `.dark` on <html> flips the whole system.
+ * ------------------------------------------------------------------ */
+/* Uber-inspired system: high-contrast, near-monochrome neutrals with a
+   pure-black dark theme. `ink` is the inverting action color — black on
+   light, white on dark — used for primary buttons. */
+:root {
+  --c-app: 245 245 245; /* app canvas */
+  --c-surface: 255 255 255; /* cards / panels */
+  --c-surface-muted: 240 240 240; /* inset fills, secondary buttons */
+  --c-elevated: 255 255 255; /* popovers, modals, dropdowns */
+  --c-line: 226 226 226; /* default borders / dividers */
+  --c-line-strong: 199 199 199; /* stronger borders */
+  --c-content: 10 10 10; /* primary text (near-black) */
+  --c-muted: 84 84 84; /* secondary text */
+  --c-faint: 138 138 138; /* tertiary text / placeholders */
+  --c-scrollbar: 199 199 199;
+
+  --c-ink: 0 0 0; /* solid action background */
+  --c-ink-content: 255 255 255; /* text on ink */
+  --c-ink-hover: 38 38 38; /* action hover */
+
+  color-scheme: light;
+}
+
+.dark {
+  --c-app: 0 0 0; /* pure-black canvas (Uber) */
+  --c-surface: 20 20 20; /* cards / panels */
+  --c-surface-muted: 31 31 31; /* inset fills, secondary buttons */
+  --c-elevated: 28 28 28; /* popovers, modals, dropdowns */
+  --c-line: 46 46 46; /* default borders / dividers */
+  --c-line-strong: 61 61 61; /* stronger borders */
+  --c-content: 255 255 255; /* primary text */
+  --c-muted: 176 176 176; /* secondary text */
+  --c-faint: 117 117 117; /* tertiary text / placeholders */
+  --c-scrollbar: 61 61 61;
+
+  --c-ink: 255 255 255; /* solid action background */
+  --c-ink-content: 0 0 0; /* text on ink */
+  --c-ink-hover: 230 230 230; /* action hover */
+
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-app font-sans text-content antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Consistent focus ring for keyboard users across native controls. */
+  :focus-visible {
+    outline: none;
+  }
+
+  ::selection {
+    background-color: rgb(var(--c-content) / 0.12);
+  }
+}
+
+@layer components {
+  /* Numeric columns (money, counts) align cleanly with tabular figures. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* When printing barcode labels, hide the whole app and show only the
+   label sheet. Toggled by the print button in BarcodeModal. */
+@media print {
+  body.printing-labels * {
+    visibility: hidden;
+  }
+
+  body.printing-labels .print-labels,
+  body.printing-labels .print-labels * {
+    visibility: visible;
+  }
+
+  body.printing-labels .print-labels {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+/* When printing a receipt, hide the app and show only the receipt.
+   Toggled by the print button in ReceiptModal. */
+@media print {
+  body.printing-receipt * {
+    visibility: hidden;
+  }
+
+  body.printing-receipt .print-receipt,
+  body.printing-receipt .print-receipt * {
+    visibility: visible;
+  }
+
+  body.printing-receipt .print-receipt {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+/* Thin, theme-aware scrollbar for every overflow-y-auto container —
+   never style scrollbars ad hoc. */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--c-scrollbar)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--c-scrollbar));
+    border-radius: 9999px;
+  }
+}

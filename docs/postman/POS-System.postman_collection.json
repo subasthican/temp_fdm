@@ -1,0 +1,622 @@
+{
+  "info": {
+    "_postman_id": "pos-system-grocery-api-v1",
+    "name": "POS System API (Grocery / Supermarket)",
+    "description": "API collection for the multi-store, offline-capable grocery POS backend (MERN).\n\nBase URL: {{baseUrl}} (default http://localhost:5000). Every route lives under /api; health probe is /api/health.\n\nHeaders:\n- Content-Type: application/json (JSON requests)\n- Authorization: Bearer {{accessToken}} (all except login, refresh, health)\n\nAuth model: short-lived JWT access token + rotating refresh token. Refresh tokens are persisted on the user, matched + rotated on every /auth/refresh, and cleared on logout and password change. Login/Refresh test scripts auto-save data.accessToken and data.refreshToken into collection variables.\n\nResponse envelope: { success, message, data }. Lists use POST /<resource>/list with page/limit/search in the JSON body (GET bodies are dropped by proxies).\n\nRoles: admin | manager | cashier. Each request description states its access level.\n\nSeeded admin: admin / Admin@123.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000", "type": "string" },
+    { "key": "username", "value": "admin", "type": "string" },
+    { "key": "password", "value": "Admin@123", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "storeId", "value": "", "type": "string" },
+    { "key": "registerId", "value": "", "type": "string" },
+    { "key": "categoryId", "value": "", "type": "string" },
+    { "key": "brandId", "value": "", "type": "string" },
+    { "key": "taxClassId", "value": "", "type": "string" },
+    { "key": "productId", "value": "", "type": "string" },
+    { "key": "batchId", "value": "", "type": "string" },
+    { "key": "saleId", "value": "", "type": "string" },
+    { "key": "barcode", "value": "8901234567890", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] },
+            "description": "Login with username + password. No auth header. Test script auto-saves data.accessToken and data.refreshToken. Body: username, password (min 8 chars).",
+            "body": { "mode": "raw", "raw": "{\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  if (res.data.accessToken) { pm.collectionVariables.set('accessToken', res.data.accessToken); console.log('accessToken saved'); }",
+                  "  if (res.data.refreshToken) { pm.collectionVariables.set('refreshToken', res.data.refreshToken); console.log('refreshToken saved'); }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api", "auth", "refresh"] },
+            "description": "Rotate the refresh token. Response carries a NEW access + refresh pair; the old refresh token dies immediately. No auth header. Test script auto-saves both.",
+            "body": { "mode": "raw", "raw": "{\n    \"refreshToken\": \"{{refreshToken}}\"\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  if (res.data.accessToken) pm.collectionVariables.set('accessToken', res.data.accessToken);",
+                  "  if (res.data.refreshToken) pm.collectionVariables.set('refreshToken', res.data.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"] },
+            "description": "Logout — clears the stored refresh token server-side. No body."
+          }
+        },
+        {
+          "name": "Get Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] },
+            "description": "Current authenticated user profile."
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] },
+            "description": "Update own profile. Only fullName / email / phone accepted (whitelisted).",
+            "body": { "mode": "raw", "raw": "{\n    \"fullName\": \"System Admin\",\n    \"email\": \"admin@nexuspos.lk\",\n    \"phone\": \"0771234567\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/change-password", "host": ["{{baseUrl}}"], "path": ["api", "auth", "change-password"] },
+            "description": "Change password. Clears the refresh token — every session must log in again.",
+            "body": { "mode": "raw", "raw": "{\n    \"currentPassword\": \"{{password}}\",\n    \"newPassword\": \"NewPass@123\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Stores",
+      "item": [
+        {
+          "name": "List Stores",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/stores/list", "host": ["{{baseUrl}}"], "path": ["api", "stores", "list"] },
+            "description": "List stores (paginated). Access: any authenticated (cashiers list to bind a terminal). Body: page, limit, search, isActive (all optional).",
+            "body": { "mode": "raw", "raw": "{\n    \"page\": 1,\n    \"limit\": 20,\n    \"search\": \"\",\n    \"isActive\": true\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "try { var rows = pm.response.json().data.data; if (rows && rows[0]) pm.collectionVariables.set('storeId', rows[0].id); } catch (e) {}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Store",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/stores", "host": ["{{baseUrl}}"], "path": ["api", "stores"] },
+            "description": "Create a store. Access: admin. code is unique.",
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Main Branch\",\n    \"code\": \"MB\",\n    \"address\": \"123 Main Street, Colombo\",\n    \"phone\": \"0112223344\",\n    \"currency\": \"Rs.\",\n    \"taxProfile\": { \"isInclusive\": true },\n    \"receipt\": { \"header\": \"\", \"footer\": \"Thank you!\", \"logoUrl\": \"\" }\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "try { var s = pm.response.json().data.store; if (s && s.id) pm.collectionVariables.set('storeId', s.id); } catch (e) {}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Store",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/stores/:id", "host": ["{{baseUrl}}"], "path": ["api", "stores", ":id"], "variable": [{ "key": "id", "value": "{{storeId}}" }] },
+            "description": "Get a store by ID."
+          }
+        },
+        {
+          "name": "Update Store",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/stores/:id", "host": ["{{baseUrl}}"], "path": ["api", "stores", ":id"], "variable": [{ "key": "id", "value": "{{storeId}}" }] },
+            "description": "Update a store (whitelisted fields incl. isActive). Access: admin.",
+            "body": { "mode": "raw", "raw": "{\n    \"phone\": \"0112223355\",\n    \"receipt\": { \"footer\": \"Thank you, come again!\" }\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Deactivate Store",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/stores/:id", "host": ["{{baseUrl}}"], "path": ["api", "stores", ":id"], "variable": [{ "key": "id", "value": "{{storeId}}" }] },
+            "description": "Soft-deactivate a store (isActive=false; history kept). Access: admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Registers",
+      "item": [
+        {
+          "name": "List Registers",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/registers/list", "host": ["{{baseUrl}}"], "path": ["api", "registers", "list"] },
+            "description": "List registers. Body: page, limit, search, storeId, isActive (all optional).",
+            "body": { "mode": "raw", "raw": "{\n    \"storeId\": \"{{storeId}}\",\n    \"isActive\": true\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "try { var rows = pm.response.json().data.data; if (rows && rows[0]) pm.collectionVariables.set('registerId', rows[0].id); } catch (e) {}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/registers", "host": ["{{baseUrl}}"], "path": ["api", "registers"] },
+            "description": "Create a register. Access: admin. receiptPrefix is globally unique (seeds offline receipt numbers).",
+            "body": { "mode": "raw", "raw": "{\n    \"storeId\": \"{{storeId}}\",\n    \"code\": \"REG01\",\n    \"name\": \"Front Counter\",\n    \"receiptPrefix\": \"S01\"\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "try { var r = pm.response.json().data.register; if (r && r.id) pm.collectionVariables.set('registerId', r.id); } catch (e) {}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Register",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/registers/:id", "host": ["{{baseUrl}}"], "path": ["api", "registers", ":id"], "variable": [{ "key": "id", "value": "{{registerId}}" }] },
+            "description": "Get a register by ID."
+          }
+        },
+        {
+          "name": "Update Register",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/registers/:id", "host": ["{{baseUrl}}"], "path": ["api", "registers", ":id"], "variable": [{ "key": "id", "value": "{{registerId}}" }] },
+            "description": "Update a register (code, name, receiptPrefix, isActive). Access: admin.",
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Front Counter 1\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Deactivate Register",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/registers/:id", "host": ["{{baseUrl}}"], "path": ["api", "registers", ":id"], "variable": [{ "key": "id", "value": "{{registerId}}" }] },
+            "description": "Soft-deactivate a register. Access: admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/categories/list", "host": ["{{baseUrl}}"], "path": ["api", "categories", "list"] },
+            "description": "List categories (soft-deleted excluded). Body: page, limit, search, parent, isActive.",
+            "body": { "mode": "raw", "raw": "{\n    \"page\": 1,\n    \"limit\": 20,\n    \"search\": \"\"\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": ["try { var rows = pm.response.json().data.data; if (rows && rows[0]) pm.collectionVariables.set('categoryId', rows[0].id); } catch (e) {}"] } }
+          ]
+        },
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/categories", "host": ["{{baseUrl}}"], "path": ["api", "categories"] },
+            "description": "Create a category. Access: admin, manager. parent is an optional category ObjectId.",
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Beverages\",\n    \"parent\": null\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": ["try { var c = pm.response.json().data.category; if (c && c.id) pm.collectionVariables.set('categoryId', c.id); } catch (e) {}"] } }
+          ]
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/categories/:id", "host": ["{{baseUrl}}"], "path": ["api", "categories", ":id"], "variable": [{ "key": "id", "value": "{{categoryId}}" }] },
+            "description": "Update a category (name, parent, isActive). Deactivate via isActive:false here. Access: admin, manager.",
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Beverages & Drinks\",\n    \"isActive\": true\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Delete Category (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/categories/:id", "host": ["{{baseUrl}}"], "path": ["api", "categories", ":id"], "variable": [{ "key": "id", "value": "{{categoryId}}" }] },
+            "description": "Soft-delete a category (isDeleted=true; hidden everywhere, row retained). Access: admin only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Brands",
+      "item": [
+        {
+          "name": "List Brands",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/brands/list", "host": ["{{baseUrl}}"], "path": ["api", "brands", "list"] },
+            "description": "List brands. Body: page, limit, search, isActive.",
+            "body": { "mode": "raw", "raw": "{\n    \"page\": 1,\n    \"limit\": 20,\n    \"search\": \"\"\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": ["try { var rows = pm.response.json().data.data; if (rows && rows[0]) pm.collectionVariables.set('brandId', rows[0].id); } catch (e) {}"] } }
+          ]
+        },
+        {
+          "name": "Create Brand",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/brands", "host": ["{{baseUrl}}"], "path": ["api", "brands"] },
+            "description": "Create a brand. Access: admin, manager.",
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Coca-Cola\"\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": ["try { var b = pm.response.json().data.brand; if (b && b.id) pm.collectionVariables.set('brandId', b.id); } catch (e) {}"] } }
+          ]
+        },
+        {
+          "name": "Update Brand",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/brands/:id", "host": ["{{baseUrl}}"], "path": ["api", "brands", ":id"], "variable": [{ "key": "id", "value": "{{brandId}}" }] },
+            "description": "Update a brand (name, isActive). Access: admin, manager.",
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Coca-Cola Co.\",\n    \"isActive\": true\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Delete Brand (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/brands/:id", "host": ["{{baseUrl}}"], "path": ["api", "brands", ":id"], "variable": [{ "key": "id", "value": "{{brandId}}" }] },
+            "description": "Soft-delete a brand. Access: admin only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tax Classes",
+      "item": [
+        {
+          "name": "List Tax Classes",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/tax-classes/list", "host": ["{{baseUrl}}"], "path": ["api", "tax-classes", "list"] },
+            "description": "List tax classes. Body: page, limit, search, isActive.",
+            "body": { "mode": "raw", "raw": "{\n    \"page\": 1,\n    \"limit\": 20\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": ["try { var rows = pm.response.json().data.data; if (rows && rows[0]) pm.collectionVariables.set('taxClassId', rows[0].id); } catch (e) {}"] } }
+          ]
+        },
+        {
+          "name": "Create Tax Class",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/tax-classes", "host": ["{{baseUrl}}"], "path": ["api", "tax-classes"] },
+            "description": "Create a tax class. Access: admin, manager. rate is a percentage.",
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Standard VAT\",\n    \"rate\": 15,\n    \"isInclusiveDefault\": true\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": ["try { var t = pm.response.json().data.taxClass; if (t && t.id) pm.collectionVariables.set('taxClassId', t.id); } catch (e) {}"] } }
+          ]
+        },
+        {
+          "name": "Update Tax Class",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/tax-classes/:id", "host": ["{{baseUrl}}"], "path": ["api", "tax-classes", ":id"], "variable": [{ "key": "id", "value": "{{taxClassId}}" }] },
+            "description": "Update a tax class (name, rate, isInclusiveDefault, isActive). Access: admin, manager.",
+            "body": { "mode": "raw", "raw": "{\n    \"rate\": 18\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Delete Tax Class (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/tax-classes/:id", "host": ["{{baseUrl}}"], "path": ["api", "tax-classes", ":id"], "variable": [{ "key": "id", "value": "{{taxClassId}}" }] },
+            "description": "Soft-delete a tax class. Access: admin only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "List Products",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/products/list", "host": ["{{baseUrl}}"], "path": ["api", "products", "list"] },
+            "description": "List products (soft-deleted excluded). Body: page, limit, search (name/SKU/barcode), categoryId, brandId, sellType, pricingMode, isActive.",
+            "body": { "mode": "raw", "raw": "{\n    \"page\": 1,\n    \"limit\": 20,\n    \"search\": \"\",\n    \"isActive\": true\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": ["try { var rows = pm.response.json().data.data; if (rows && rows[0]) pm.collectionVariables.set('productId', rows[0].id); } catch (e) {}"] } }
+          ]
+        },
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api", "products"] },
+            "description": "Create a product. Access: admin, manager.\n\npricingMode: 'batch' (MRP from FEFO batch) | 'product' (per-store price). sellType: 'each' | 'weighed'. taxClassId nullable (defaults to Exempt). SKU + barcodes unique across catalog.",
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Sugar 1kg\",\n    \"sku\": \"SUG1KG\",\n    \"barcodes\": [\"{{barcode}}\"],\n    \"categoryId\": \"{{categoryId}}\",\n    \"brandId\": null,\n    \"imageUrl\": \"\",\n    \"sellType\": \"each\",\n    \"pricingMode\": \"batch\",\n    \"baseUnit\": \"pcs\",\n    \"taxClassId\": null,\n    \"isAgeRestricted\": false\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": ["try { var p = pm.response.json().data.product; if (p && p.id) pm.collectionVariables.set('productId', p.id); } catch (e) {}"] } }
+          ]
+        },
+        {
+          "name": "Get Product",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/products/:id", "host": ["{{baseUrl}}"], "path": ["api", "products", ":id"], "variable": [{ "key": "id", "value": "{{productId}}" }] },
+            "description": "Get a product by ID, including its per-store prices."
+          }
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/products/:id", "host": ["{{baseUrl}}"], "path": ["api", "products", ":id"], "variable": [{ "key": "id", "value": "{{productId}}" }] },
+            "description": "Update a product (whitelisted fields incl. isActive). Access: admin, manager.",
+            "body": { "mode": "raw", "raw": "{\n    \"name\": \"Sugar 1kg (white)\",\n    \"isActive\": true\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Set Per-store Price",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/products/:id/prices", "host": ["{{baseUrl}}"], "path": ["api", "products", ":id", "prices"], "variable": [{ "key": "id", "value": "{{productId}}" }] },
+            "description": "Upsert a store's price for the product. Access: admin, manager. For batch-priced items this is a fallback; batch MRP wins at billing.",
+            "body": { "mode": "raw", "raw": "{\n    \"storeId\": \"{{storeId}}\",\n    \"cost\": 95,\n    \"sellPrice\": 110,\n    \"reorderLevel\": 20\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Generate Barcode",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/products/:id/barcode", "host": ["{{baseUrl}}"], "path": ["api", "products", ":id", "barcode"], "variable": [{ "key": "id", "value": "{{productId}}" }] },
+            "description": "Mint/assign a barcode into product.barcodes[]. Access: admin, manager. format: 'ean13' (in-store EAN-13, minted) | 'code128' (encodes the SKU).",
+            "body": { "mode": "raw", "raw": "{\n    \"format\": \"ean13\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Delete Product (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/products/:id", "host": ["{{baseUrl}}"], "path": ["api", "products", ":id"], "variable": [{ "key": "id", "value": "{{productId}}" }] },
+            "description": "Soft-delete a product (hidden from catalog, search and checkout; sale/stock history kept). Access: admin only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "item": [
+        {
+          "name": "Receive Stock",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/inventory/receive", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "receive"] },
+            "description": "Receive stock — creates a batch (with expiry + MRP), bumps on-hand, logs a movement. Access: admin, manager. Leave batchNo blank to auto-generate (<SKU>-B<seq>). Shared path reused by goods-receipt later.",
+            "body": { "mode": "raw", "raw": "{\n    \"productId\": \"{{productId}}\",\n    \"storeId\": \"{{storeId}}\",\n    \"batchNo\": \"\",\n    \"expiryDate\": \"2026-12-31\",\n    \"cost\": 95,\n    \"sellPrice\": 110,\n    \"quantity\": 100\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": ["try { var b = pm.response.json().data.batch; if (b && b.id) pm.collectionVariables.set('batchId', b.id); } catch (e) {}"] } }
+          ]
+        },
+        {
+          "name": "Adjust Stock",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/inventory/adjust", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "adjust"] },
+            "description": "Adjust stock by a signed delta (negative removes). Access: admin, manager. reason: damage | wastage | count_correction | expiry | theft | other. Optional batchId targets a specific batch.",
+            "body": { "mode": "raw", "raw": "{\n    \"productId\": \"{{productId}}\",\n    \"storeId\": \"{{storeId}}\",\n    \"delta\": -8,\n    \"reason\": \"damage\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "List Stock",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/inventory/stock/list", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "stock", "list"] },
+            "description": "Per-store on-hand list with low-stock flag. Body: page, limit, search, storeId.",
+            "body": { "mode": "raw", "raw": "{\n    \"storeId\": \"{{storeId}}\",\n    \"search\": \"\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "List Batches",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/inventory/batches/list", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "batches", "list"] },
+            "description": "Batches (FEFO order — earliest expiry first). Body: page, limit, productId, storeId, inStock.",
+            "body": { "mode": "raw", "raw": "{\n    \"productId\": \"{{productId}}\",\n    \"inStock\": true\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "List Movements",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/inventory/movements/list", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "movements", "list"] },
+            "description": "Append-only stock movement ledger. Body: page, limit, productId, storeId, type (receive|sale|return|adjustment|wastage|transfer_out|transfer_in).",
+            "body": { "mode": "raw", "raw": "{\n    \"productId\": \"{{productId}}\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sales / Checkout",
+      "item": [
+        {
+          "name": "Lookup Item",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/sales/lookup", "host": ["{{baseUrl}}"], "path": ["api", "sales", "lookup"] },
+            "description": "Resolve a scanned/searched item for the cart: product + unit price + (for batch-priced) all in-stock batches in FEFO order. Access: any authenticated. Provide barcode OR productId, plus storeId.",
+            "body": { "mode": "raw", "raw": "{\n    \"storeId\": \"{{storeId}}\",\n    \"barcode\": \"{{barcode}}\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        },
+        {
+          "name": "Complete Sale",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/sales", "host": ["{{baseUrl}}"], "path": ["api", "sales"] },
+            "description": "Complete a sale. Access: any authenticated. IDEMPOTENT on clientSaleId (a UUID — a retry returns the original sale, never double-posts). Server re-resolves each line's authoritative price from its batch / per-store price, decrements stock + batches, mints the receipt number, and computes change. payments[].method: cash | card | wallet.",
+            "body": { "mode": "raw", "raw": "{\n    \"clientSaleId\": \"{{$guid}}\",\n    \"storeId\": \"{{storeId}}\",\n    \"registerId\": \"{{registerId}}\",\n    \"lines\": [\n        {\n            \"productId\": \"{{productId}}\",\n            \"batchId\": \"{{batchId}}\",\n            \"barcode\": \"{{barcode}}\",\n            \"quantity\": 2\n        }\n    ],\n    \"payments\": [\n        { \"method\": \"cash\", \"amount\": 500 }\n    ]\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": ["try { var s = pm.response.json().data.sale; if (s && s.id) pm.collectionVariables.set('saleId', s.id); } catch (e) {}"] } }
+          ]
+        },
+        {
+          "name": "Get Sale (receipt)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/sales/:id", "host": ["{{baseUrl}}"], "path": ["api", "sales", ":id"], "variable": [{ "key": "id", "value": "{{saleId}}" }] },
+            "description": "Full receipt payload for one sale (store header/footer, register, cashier, lines, totals, payments, change). Used for on-screen receipt + reprint."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Dashboard",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/reports/dashboard", "host": ["{{baseUrl}}"], "path": ["api", "reports", "dashboard"] },
+            "description": "Dashboard analytics. Access: admin, manager. Returns summary (revenue, salesCount, itemsSold, averageBasket), tender split (cash nets change), top products, daily sales series, and a current stock snapshot (units, value, low-stock, SKUs). Body: storeId, from, to (ISO dates) — all optional (omit for all-time / all-stores).",
+            "body": { "mode": "raw", "raw": "{\n    \"storeId\": \"{{storeId}}\",\n    \"from\": \"2026-07-01\",\n    \"to\": \"2026-07-31\"\n}", "options": { "raw": { "language": "json" } } }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/health", "host": ["{{baseUrl}}"], "path": ["api", "health"] },
+            "description": "Liveness probe. No auth. Returns { success, message: 'OK', data: { uptime } }."
+          }
+        }
+      ]
+    }
+  ]
+}
